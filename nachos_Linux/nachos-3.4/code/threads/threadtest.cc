@@ -1,0 +1,78 @@
+// threadtest.cc 
+//	Simple test case for the threads assignment.
+//
+//	Create two threads, and have them context switch
+//	back and forth between themselves by calling Thread::Yield, 
+//	to illustratethe inner workings of the thread system.
+//
+// Copyright (c) 1992-1993 The Regents of the University of California.
+// All rights reserved.  See copyright.h for copyright notice and limitation 
+// of liability and disclaimer of warranty provisions.
+
+#include <cstdlib>
+#include <time.h>
+#include "copyright.h"
+#include "system.h"
+
+void
+Run(int which)
+{    
+    for( ; currentThread->getTime() > 0; currentThread->setTime(currentThread->getTime() - scheduler->getQuantum(currentThread))) {
+	int chance = rand()%20 + 1; //Simulates random arriving new processes
+	if(chance == 1 && scheduler->get_num_process() < 26) { //Keeps the total processes <= 26
+	    printf("### A new process has arrived. ### ");
+	    Thread *t = new Thread("forked thread");
+	    t->setPriority(rand()%100 + 1); //Randomly sets priority from 1 to 100
+	    t->setTime(rand()%900+100); //Randomly sets running time from 11 to 60
+	    t->setArrival(my_clock);
+	    t->setID(scheduler->get_num_process());
+    	    t->Fork(Run, scheduler->get_num_process());
+	    if(method == 1 || method == 2) { //Only do this if I am running my new RR.
+	        scheduler->setQuantum(); //Update base quantum since a new process arrived
+	    }
+	}
+	// This section is only used for printing results to the screen, not part of algorithm
+	for(int i = 0; i < scheduler->getQuantum(currentThread); i++) {
+	    printf("%c", which+65); //Prints process 0 as A, process 1 as B, etc.
+	    my_clock++;
+	    scheduler->wait();
+	}
+	if(currentThread->getTime()-scheduler->getQuantum(currentThread) <= 0) {
+	    printf(" *Finishes* "); //Prints "finish" after a process have just completed
+	    //printf("quantum is: %d", scheduler->getQuantum(currentThread));
+	    scheduler->decrement_process();
+
+	    //Copy the waiting and turnaround times of a thread before we call Finish() on it
+	    //So that later we can do a method analysis based on these times.
+	    scheduler->time_copy(which, currentThread->getWait(), my_clock - currentThread->getArrival());
+
+	    if(scheduler->get_remaining_process() == 0)
+		scheduler->method_analysis();
+	    context_switch++;
+	    currentThread->Finish();
+	}
+	else {
+	    context_switch++;
+            currentThread->Yield();
+	}
+    }
+}
+
+void
+ThreadTest()
+{
+    DEBUG('t', "Entering ThreadTest");
+    int numProcess = 5;
+    int seed = time(NULL);
+    //srand(seed);
+    for(int i = 0; i < numProcess; i++){
+   	Thread *t = new Thread("forked thread");
+	t->setPriority(rand()%100 + 1); //Randomly sets priority from 1 to 100
+	t->setTime(rand()%900+100); //Randomly sets running time from 11 to 60
+	t->setArrival(my_clock);
+	t->setID(i);
+    	t->Fork(Run, i);	
+    }
+    scheduler->setQuantum(); //Set a base quantum time
+}
+
